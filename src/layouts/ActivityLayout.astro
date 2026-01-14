@@ -1,0 +1,41 @@
+---
+import "../styles/activity.css";
+import { getActivity } from "../server/mockActivityAssembler";
+
+const { activityId, activeView } = Astro.props;
+const activity = await getActivity(activityId);
+---
+<!DOCTYPE html>
+<html lang="en">
+  <body>
+  <div class="user-badge">
+  Pilot / Instructor Resource Center
+</div>
+
+    <div class="grid-layout">
+      <nav>
+        <div class="logo"></div>
+        <ul>
+          {activity.sections.map(sec => (
+            <li>
+              <a
+                href={`/activities/details/${activity.id}/${sec.key}`}
+                class={sec.key === activeView ? "active" : ""}
+              >
+                {sec.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      <main>
+        <header id="page-title">
+          <h1>{activity.title}</h1>
+        </header>
+
+        <slot />
+      </main>
+    </div>
+  </body>
+</html>

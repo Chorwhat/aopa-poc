@@ -1,0 +1,66 @@
+---
+const { section } = Astro.props;
+---
+<section>
+  <h1>{section.label}</h1>
+
+  {section.blocks.map(block => (
+    <div class="activity-block">
+      {block.heading && <h3>{block.heading}</h3>}
+
+      {block.body && <p set:html={block.body} />}
+
+      {block.list && (
+        <ul>
+          {block.list.map(item => <li>{item}</li>)}
+        </ul>
+      )}
+
+      {block.table && (
+        <div class="table-container">
+          <table class="prep-table">
+            <thead>
+              <tr>
+                {block.table.headers.map(h => (
+                  <th>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.table.rows.map(row => (
+                <tr>
+                  {row.map(cell => (
+                    <td set:html={cell} />
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {block.statusList && (
+  <div class="status-list">
+    {block.statusList.map(item => (
+      <div class="status-item">
+        <span class={item.checked ? "checked" : "unchecked"}>
+          {item.checked ? "CHECKED" : "UNCHECKED"}
+        </span>
+        <span>{item.label}</span>
+      </div>
+    ))}
+  </div>
+)}
+
+{block.linkGrid && (
+  <div class="link-grid">
+    {block.linkGrid.map(link => (
+      <a href={link.href} class="link-item">
+        {link.text}
+      </a>
+    ))}
+  </div>
+)}
+    </div>
+  ))}
+</section>
