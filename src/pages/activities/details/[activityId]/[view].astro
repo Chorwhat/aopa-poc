@@ -1,12 +1,12 @@
 ---
 import ActivityLayout from "../../../../layouts/ActivityLayout.astro";
 import SectionRenderer from "../../../../components/SectionRenderer.astro";
-import { getActivitySection } from "../../../../server/mockActivityAssembler";
+import { getActivitySection } from "../../../../server/dynamicmockActivityAssembler";
 
+
+import activitiesData from "../../../../data/activities.json";
 
 export async function getStaticPaths() {
-  const activityId = "123";
-
   const views = [
     "overview",
     "checklist",
@@ -18,9 +18,22 @@ export async function getStaticPaths() {
     "regulatory",
   ];
 
-  return views.map(view => ({
-    params: { activityId, view }
-  }));
+  const paths = [];
+
+  for (const category of activitiesData.categories ?? []) {
+    for (const activity of category.activities ?? []) {
+      for (const view of views) {
+        paths.push({
+          params: {
+            activityId: activity.id,
+            view,
+          },
+        });
+      }
+    }
+  }
+
+  return paths;
 }
 
 const { activityId, view } = Astro.params;
@@ -31,6 +44,7 @@ if (!section) {
   throw new Response("Not found", { status: 404 });
 }
 ---
+
 <ActivityLayout activityId={activityId} activeView={view}>
   <SectionRenderer section={section} />
 </ActivityLayout>

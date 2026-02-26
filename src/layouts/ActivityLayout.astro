@@ -1,6 +1,6 @@
 ---
 import "../styles/activity.css";
-import { getActivity } from "../server/mockActivityAssembler";
+import { getActivity } from "../server/dynamicmockActivityAssembler";
 
 const { activityId, activeView } = Astro.props;
 const activity = await getActivity(activityId);
@@ -13,9 +13,13 @@ const activity = await getActivity(activityId);
 </div>
 
     <div class="grid-layout">
+    
       <nav>
         <div class="logo"></div>
         <ul>
+
+        <a href="/activities" class="back-link"> back to All Activities </a>
+        
           {activity.sections.map(sec => (
             <li>
               <a

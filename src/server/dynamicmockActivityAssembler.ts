@@ -1,145 +1,281 @@
 import type { Activity } from "../types/activity";
+import rawData from "../data/activities.json";
 
-//THE BELOW COMMENT BLOCK IS A SAMPLE FOR HOW I WOULD FETCH FROM SQL
-// import sql from "mssql";
-
-// // Example SQL Server config
-// const config = {
-//   user: process.env.DB_USER,
-//   password: process.env.DB_PASS,
-//   server: process.env.DB_SERVER,
-//   database: process.env.DB_NAME,
-//   options: {
-//     encrypt: true,
-//     trustServerCertificate: true,
-//   },
-// };
-
-// export async function getActivity(activityId: string): Promise<Activity> {
-//   const pool = await sql.connect(config);
-
-//   // 1️⃣ Fetch ActivityTemplates row
-//   const activityRes = await pool
-//     .request()
-//     .input("id", sql.VarChar, activityId)
-//     .query(`
-//       SELECT *
-//       FROM ActivityTemplates
-//       WHERE Id = @id
-//     `);
-
-//   if (activityRes.recordset.length === 0) throw new Error("Activity not found");
-//   const activityRow = activityRes.recordset[0];
-
-//   // 2️⃣ Fetch checklist items
-//   const checklistRes = await pool
-//     .request()
-//     .input("activityId", sql.VarChar, activityId)
-//     .query(`
-//       SELECT *
-//       FROM ActivityChecklistItem
-//       WHERE ActivityTemplatesId = @activityId
-//       ORDER BY Name
-//     `);
-
-//   const checklistItems = checklistRes.recordset;
-
-
-
+/**
+ * Public API (unchanged)
+ */
 export async function getActivitySection(activityId: string, sectionKey: string) {
   const activity = await getActivity(activityId);
   return activity.sections.find(s => s.key === sectionKey) ?? null;
 }
 
+/**
+ * Find an activity inside categories[]
+ */
+function findRawActivity(activityId: string) {
+  for (const category of rawData.categories ?? []) {
+    const found = category.activities?.find(a => a.id === activityId);
+    if (found) {
+      return found;
+    }
+  }
+  return null;
+}
+
+/**
+ * Build ONE Activity from nested JSON
+ */
 export async function getActivity(activityId: string): Promise<Activity> {
- 
+  const raw = findRawActivity(activityId);
 
-
-
-  const activityRow = {
-    Title: "Taxiing",
-    info_what: "This is the info what",
-    info_why: "This is the info why",
-    ground_prep: "This is the ground prep"
+  if (!raw) {
+    throw new Error(`Activity not found: ${activityId}`);
   }
 
-
-
-  const checklistItems = [
-  {
-    Id: 1,
-    ActivityTemplatesId: '1234567890',
-    name: 'Mixture',
-    notestopilot: 'Check mixture settings',
-    teaching_tips: 'Explain mixture',
-    alternate_procedures: 'Alternate mixture'
-  },
-  {
-    Id: 2,
-    ActivityTemplatesId: '1234567890',
-    name: 'Brakes',
-    notestopilot: 'Avoid riding brakes',
-    teaching_tips: 'Brake technique',
-    alternate_procedures: 'Alternate brakes'
-  }
-]
-
-
+  var nameClean = raw.name.substring(raw.name.indexOf(":") + 1);
 
   const sections = [
-    {
-      key: "overview",
-      label: "Overview",
-      blocks: [
-        { heading: "What", body: activityRow.info_what },
-        { heading: "Why", body: activityRow.info_why },
-        { heading: "Ground Prep", body: activityRow.ground_prep },
-      ],
-    },
-    {
-      key: "checklist",
-      label: "Checklist",
-      blocks: checklistItems.map((item) => ({
-        heading: item.name,
-        body: "", 
-      })),
-    },
-    {
-      key: "notestopilot",
-      label: "Notes to Pilot",
-      blocks: checklistItems
-        .filter((item) => item.notestopilot)
-        .map((item) => ({
-          heading: item.name,
-          body: item.notestopilot,
-        })),
-    },
-    {
-      key: "teachingtips",
-      label: "Teaching Tips",
-      blocks: checklistItems
-        .filter((item) => item.teaching_tips)
-        .map((item) => ({
-          heading: item.name,
-          body: item.teaching_tips,
-        })),
-    },
-    {
-      key: "alternateprocedures",
-      label: "Alternate Procedures",
-      blocks: checklistItems
-        .filter((item) => item.alternate_procedures)
-        .map((item) => ({
-          heading: item.name,
-          body: item.alternate_procedures,
-        })),
-    },
-    // ... regulatory, prep, commonerrors, etc. can be added similarly
-  ];
+    buildOverview(raw),
+    // buildGroundPrep(raw),
+    buildChecklist(raw),
+    buildNotesToPilot(raw),
+    buildTeachingTips(raw),
+    buildAlternateProcedures(raw),
+    buildCommonErrors(raw),
+    // buildCompletionStandards(raw),
+    buildRegulatory(raw),
+    buildPrep(raw),
+  ].filter(Boolean);
 
   return {
-    id: activityId,
-    title: activityRow.Title,
+    id: raw.id,
+    title: nameClean,
     sections,
+  };
+}
+/* ============================
+   SECTION BUILDERS
+   ============================ */
+
+function buildOverview(activity) {
+  const simulatorContent = activity.checklistItems
+    ?.map(item => item.simulator)
+    .filter(Boolean)
+    .join("<br/><br/>");
+
+  return {
+    key: "overview",
+    label: "Overview",
+    blocks: [
+      { heading: "What", body: activity.what },
+      { heading: "Why", body: activity.why },
+
+      activity.groundPrep && {
+        heading: "Ground Prep",
+        body: activity.groundPrep,
+      },
+
+      simulatorContent && {
+        heading: "Simulator",
+        body: simulatorContent,
+      },
+    ].filter(Boolean),
+  };
+}
+
+// function buildGroundPrep(activity) {
+//   if (!activity.groundPrep) return null;
+
+//   return {
+//     key: "groundprep",
+//     label: "Ground Prep",
+//     blocks: [
+//       {
+//         list: activity.groundPrep
+//           .split("\n")
+//           .map(line => line.replace(/^- /, "").trim())
+//           .filter(Boolean),
+//       },
+//     ],
+//   };
+// }
+
+function buildChecklist(activity) {
+  if (!activity.checklistItems?.length) return null;
+
+  return {
+    key: "checklist",
+    label: "Checklist",
+    blocks: activity.checklistItems
+      .sort((a, b) => a.order - b.order)
+      .map(item => ({
+        heading: item.name,
+        body: "",
+      })),
+  };
+}
+
+
+function buildNotesToPilot(activity) {
+ const itemsWithNotes = activity.checklistItems.filter(
+  i => i.notesToPilot?.trim() && i.notesToPilot.trim() !== "N  A"
+);
+
+  // Case 1: EVERYTHING is empty
+  if (itemsWithNotes.length === 0) {
+    return {
+      key: "notestopilot",
+      label: "Notes to Pilot",
+      blocks: [
+        {
+          body: "This section is intentionally left blank.",
+        },
+      ],
+    };
+  }
+
+  // Case 2: Some items have notes
+  return {
+    key: "notestopilot",
+    label: "Notes to Pilot",
+    blocks: itemsWithNotes.map(item => ({
+      heading: item.name,
+      body: item.notesToPilot,
+    })),
+  };
+}
+
+
+
+function buildTeachingTips(activity) {
+  return {
+    key: "teachingtips",
+    label: "Teaching Tips",
+    blocks: activity.checklistItems
+      .filter(i => i.teachingTips)
+      .map(item => ({
+        heading: item.name,
+        body: item.teachingTips,
+      })),
+  };
+}
+
+function buildAlternateProcedures(activity) {
+ const itemsWithAltProcedures = activity.checklistItems.filter(
+  i => i.alternateProcedures?.trim() && i.alternateProcedures.trim() !== "N/A"
+);
+
+ // Case 1: EVERYTHING is empty
+  if (itemsWithAltProcedures.length === 0) {
+    return {
+      key: "alternateprocedures",
+      label: "Alternate Procedures",
+      blocks: [
+        {
+          body: "Write in with suggestions for alternate procedures!.",
+        },
+      ],
+    };
+  }
+
+  // Case 2: Some items have notes
+  return {
+    key: "alternateprocedures",
+    label: "Alternate Procedures",
+    blocks: itemsWithAltProcedures.map(item => ({
+      heading: item.name,
+      body: item.alternateProcedures,
+    }))
+  };
+
+
+
+  // return {
+  //   key: "alternateprocedures",
+  //   label: "Alternate Procedures",
+  //   blocks: activity.checklistItems
+  //     .filter(
+  //       i => i.alternateProcedures && i.alternateProcedures !== "N/A"
+  //     )
+  //     .map(item => ({
+  //       heading: item.name,
+  //       body: item.alternateProcedures,
+  //     })),
+  // };
+}
+
+function buildCommonErrors(activity) {
+  if (!activity.commonErrors?.length) return null;
+
+  return {
+    key: "commonerrors",
+    label: "Common Errors",
+    blocks: activity.commonErrors.map(err => ({
+      heading: err.name,
+      body: err.details,
+    })),
+  };
+}
+
+function buildCompletionStandards(activity) {
+  if (!activity.completionStandards?.length) return null;
+
+  return {
+    key: "completionstandards",
+    label: "Completion Standards",
+    blocks: [
+      {
+        table: {
+          headers: ["Grade", "Description"],
+          rows: activity.completionStandards.map(cs => [
+            cs.grade.toString(),
+            cs.description,
+          ]),
+        },
+      },
+    ],
+  };
+}
+
+function buildRegulatory(activity) {
+  if (!activity.standards?.length) return null;
+
+  return {
+    key: "regulatory",
+    label: "Regulatory",
+    blocks: [
+      {
+        table: {
+          headers: ["Standard", "Reference"],
+          rows: activity.standards.map(s => [
+            s.name,
+            `<a href="${s.link}" target="_blank" rel="noopener">View</a>`,
+          ]),
+        },
+      },
+    ],
+  };
+}
+
+function buildPrep(activity) {
+  if (!activity.prepItems?.length) return null;
+
+  return {
+    key: "prep",
+    label: "Prep",
+    blocks: [
+      {
+        table: {
+          headers: ["Resource", "Description", "Link"],
+          rows: activity.prepItems
+            .sort((a, b) => a.priority - b.priority)
+            .map(p => [
+              `${p.name} (${p.source})`,
+              p.details ?? "",
+              `<a href="${p.link}" target="_blank" rel="noopener">Open</a>`,
+            ]),
+        },
+      },
+    ],
   };
 }

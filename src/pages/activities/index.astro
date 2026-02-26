@@ -1,0 +1,79 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import activitiesData from "../../data/activities.json";
+
+// Enforced, explicit stage order
+const STAGE_ORDER = ["PreSolo", "Solo"];
+
+// Group activities by stageLevel
+function groupByStageLevel(activities) {
+  return activities.reduce((acc, act) => {
+    const level = act.stageLevel ?? "Uncategorized";
+    if (!acc[level]) acc[level] = [];
+    acc[level].push(act);
+    return acc;
+  }, {});
+}
+---
+<BaseLayout>
+  <h1>All Activities</h1>
+
+  <ul>
+    {activitiesData.categories.map(category => {
+      const grouped = groupByStageLevel(category.activities);
+
+      // Ensure enforced order + safe fallback for unknown levels
+      const orderedLevels = [
+        ...STAGE_ORDER,
+        ...Object.keys(grouped).filter(
+          level => !STAGE_ORDER.includes(level)
+        ),
+      ];
+
+      function getSortableName(name) {
+  if (!name) return "";
+  const parts = name.split(":");
+  return parts.length > 1
+    ? parts.slice(1).join(":").trim()
+    : name.trim();
+}
+
+      return (
+        <li>
+          <h3>{category.name}</h3>
+
+          <ul>
+            {orderedLevels.map(stageLevel => {
+              const acts = grouped[stageLevel];
+              if (!acts) return null;
+
+              const sortedActs = [...acts].sort((a, b) =>
+                getSortableName(a.name).localeCompare(
+                  getSortableName(b.name),
+                  undefined,
+                  { sensitivity: "base" }
+                )
+              );
+
+              return (
+                <li>
+                  <h4>{stageLevel}</h4>
+
+                  <ul>
+                    {sortedActs.map(act => (
+                      <li>
+                        <a href={`/activities/details/${act.id}/overview`}>
+                          {act.name.substring(act.name.indexOf(":") + 1)}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              );
+            })}
+          </ul>
+        </li>
+      );
+    })}
+  </ul>
+</BaseLayout>
